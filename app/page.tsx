@@ -5,7 +5,7 @@ import Link from "next/link"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100">
       <div className="container mx-auto px-4 py-6">
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">CoICT Cafeteria</h1>
@@ -14,7 +14,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader className="text-center pb-2">
               <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3">
@@ -56,6 +56,23 @@ export default function HomePage() {
             <CardContent className="text-center pt-2">
               <Link href="/kiosk">
                 <Button className="w-full bg-purple-600 hover:bg-purple-700">Start Ordering</Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="text-center pb-2">
+              <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
+                <Users className="w-6 h-6 text-red-600" />
+              </div>
+              <CardTitle className="text-lg">Admin Portal</CardTitle>
+              <CardDescription className="text-sm">
+                Manage menu, categories, cashiers, and system settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center pt-2">
+              <Link href="/admin">
+                <Button className="w-full bg-red-600 hover:bg-red-700">Admin Dashboard</Button>
               </Link>
             </CardContent>
           </Card>
