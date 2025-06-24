@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +31,8 @@ import {
   UserPlus,
 } from "lucide-react"
 import Link from "next/link"
+import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
 interface MenuItem {
   id: string
@@ -58,99 +60,10 @@ interface Cashier {
   joinDate: string
 }
 
-const mockMenuItems: MenuItem[] = [
-  {
-    id: "1",
-    name: "Ugali with Beef Stew",
-    description: "Traditional Tanzanian meal with tender beef",
-    price: 3500,
-    category: "lunch",
-    ready: true,
-  },
-  {
-    id: "2",
-    name: "Rice with Chicken",
-    description: "Steamed rice served with grilled chicken",
-    price: 4000,
-    category: "lunch",
-    ready: true,
-  },
-  {
-    id: "3",
-    name: "Mandazi",
-    description: "Traditional fried dough snack",
-    price: 500,
-    category: "breakfast",
-    ready: true,
-  },
-  {
-    id: "4",
-    name: "Burger & Fries",
-    description: "Beef burger with crispy fries",
-    price: 6000,
-    category: "fast food",
-    ready: true,
-  },
-  {
-    id: "5",
-    name: "Grilled Fish",
-    description: "Fresh grilled fish with vegetables",
-    price: 7000,
-    category: "dinner",
-    ready: true,
-  },
-  {
-    id: "6",
-    name: "Fresh Mango",
-    description: "Sweet tropical mango slices",
-    price: 2000,
-    category: "fruits",
-    ready: true,
-  },
-]
-
-const mockCategories: Category[] = [
-  { id: "breakfast", name: "Breakfast", description: "Morning meals and snacks", active: true },
-  { id: "fast-food", name: "Fast Food", description: "Quick service meals", active: true },
-  { id: "lunch", name: "Lunch", description: "Midday main courses", active: true },
-  { id: "dinner", name: "Dinner", description: "Evening meals", active: true },
-  { id: "fruits", name: "Fruits", description: "Fresh fruits and healthy snacks", active: true },
-]
-
-const mockCashiers: Cashier[] = [
-  {
-    id: "1",
-    name: "John Mwalimu",
-    email: "john.mwalimu@udsm.ac.tz",
-    phone: "+255 123 456 789",
-    shift: "Morning",
-    active: true,
-    joinDate: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Mary Juma",
-    email: "mary.juma@udsm.ac.tz",
-    phone: "+255 987 654 321",
-    shift: "Afternoon",
-    active: true,
-    joinDate: "2024-01-20",
-  },
-  {
-    id: "3",
-    name: "Peter Moshi",
-    email: "peter.moshi@udsm.ac.tz",
-    phone: "+255 555 123 456",
-    shift: "Evening",
-    active: false,
-    joinDate: "2024-02-01",
-  },
-]
-
 export default function AdminDashboard() {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(mockMenuItems)
-  const [categories, setCategories] = useState<Category[]>(mockCategories)
-  const [cashiers, setCashiers] = useState<Cashier[]>(mockCashiers)
+  const [menuItems, setMenuItems] = useState<MenuItem[] | null>(null)
+  const [categories, setCategories] = useState<Category[] | null>(null)
+  const [cashiers, setCashiers] = useState<Cashier[] | null>(null)
   const [showAddItem, setShowAddItem] = useState(false)
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [showAddCashier, setShowAddCashier] = useState(false)
@@ -176,6 +89,62 @@ export default function AdminDashboard() {
     shift: "",
   })
 
+  const [orders, setOrders] = useState<any[] | null>(null)
+
+  useEffect(() => {
+    // Real-time menuItems
+    const unsubMenu = onSnapshot(
+      collection(db, "menuItems"),
+      (snapshot) => {
+        console.log("menuItems snapshot", snapshot.docs.length);
+        setMenuItems(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() } as MenuItem)
+          )
+        );
+      }
+    );
+    // Real-time categories
+    const unsubCat = onSnapshot(
+      collection(db, "categories"),
+      (snapshot) => {
+        setCategories(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() } as Category)
+          )
+        );
+      }
+    );
+    // Real-time cashiers
+    const unsubCash = onSnapshot(
+      collection(db, "cashiers"),
+      (snapshot) => {
+        setCashiers(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() } as Cashier)
+          )
+        );
+      }
+    );
+    // Add real-time orders listener
+    const unsubOrders = onSnapshot(
+      collection(db, "orders"),
+      (snapshot) => {
+        setOrders(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    return () => {
+      unsubMenu();
+      unsubCat();
+      unsubCash();
+      unsubOrders();
+    };
+  }, []);
+
   const resetItemForm = () => {
     setItemForm({ name: "", description: "", price: "", category: "" })
     setEditingItem(null)
@@ -191,19 +160,19 @@ export default function AdminDashboard() {
     setEditingCashier(null)
   }
 
-  const handleAddItem = () => {
-    const newItem: MenuItem = {
-      id: Date.now().toString(),
+  const handleAddItem = async () => {
+    console.log("handleAddItem called");
+    const newItem = {
       name: itemForm.name,
       description: itemForm.description,
       price: Number.parseInt(itemForm.price),
       category: itemForm.category,
       ready: true,
-    }
-    setMenuItems([...menuItems, newItem])
-    resetItemForm()
-    setShowAddItem(false)
-  }
+    };
+    await addDoc(collection(db, "menuItems"), newItem);
+    resetItemForm();
+    setShowAddItem(false);
+  };
 
   const handleEditItem = (item: MenuItem) => {
     setEditingItem(item)
@@ -217,9 +186,9 @@ export default function AdminDashboard() {
   }
 
   const handleUpdateItem = () => {
-    if (editingItem) {
+    if (editingItem && menuItems) {
       setMenuItems(
-        menuItems.map((item) =>
+      menuItems.map((item) =>
           item.id === editingItem.id
             ? {
                 ...item,
@@ -230,27 +199,27 @@ export default function AdminDashboard() {
               }
             : item,
         ),
-      )
-      resetItemForm()
-      setShowAddItem(false)
+      );
+      resetItemForm();
+      setShowAddItem(false);
     }
-  }
+  };
 
   const handleDeleteItem = (id: string) => {
-    setMenuItems(menuItems.filter((item) => item.id !== id))
+    if (!menuItems) return;
+    setMenuItems(menuItems.filter((item) => item.id !== id));
   }
 
-  const handleAddCategory = () => {
-    const newCategory: Category = {
-      id: categoryForm.name.toLowerCase().replace(/\s+/g, "-"),
+  const handleAddCategory = async () => {
+    const newCategory = {
       name: categoryForm.name,
       description: categoryForm.description,
       active: true,
-    }
-    setCategories([...categories, newCategory])
-    resetCategoryForm()
-    setShowAddCategory(false)
-  }
+    };
+    await addDoc(collection(db, "categories"), newCategory);
+    resetCategoryForm();
+    setShowAddCategory(false);
+  };
 
   const handleEditCategory = (category: Category) => {
     setEditingCategory(category)
@@ -262,7 +231,7 @@ export default function AdminDashboard() {
   }
 
   const handleUpdateCategory = () => {
-    if (editingCategory) {
+    if (editingCategory && categories) {
       setCategories(
         categories.map((cat) =>
           cat.id === editingCategory.id
@@ -273,34 +242,35 @@ export default function AdminDashboard() {
               }
             : cat,
         ),
-      )
-      resetCategoryForm()
-      setShowAddCategory(false)
+      );
+      resetCategoryForm();
+      setShowAddCategory(false);
     }
-  }
+  };
 
   const handleDeleteCategory = (id: string) => {
-    setCategories(categories.filter((cat) => cat.id !== id))
+    if (!categories) return;
+    setCategories(categories.filter((cat) => cat.id !== id));
   }
 
   const toggleCategoryStatus = (id: string) => {
+    if (!categories) return;
     setCategories(categories.map((cat) => (cat.id === id ? { ...cat, active: !cat.active } : cat)))
   }
 
-  const handleAddCashier = () => {
-    const newCashier: Cashier = {
-      id: Date.now().toString(),
+  const handleAddCashier = async () => {
+    const newCashier = {
       name: cashierForm.name,
       email: cashierForm.email,
       phone: cashierForm.phone,
       shift: cashierForm.shift,
       active: true,
       joinDate: new Date().toISOString().split("T")[0],
-    }
-    setCashiers([...cashiers, newCashier])
-    resetCashierForm()
-    setShowAddCashier(false)
-  }
+    };
+    await addDoc(collection(db, "cashiers"), newCashier);
+    resetCashierForm();
+    setShowAddCashier(false);
+  };
 
   const handleEditCashier = (cashier: Cashier) => {
     setEditingCashier(cashier)
@@ -314,7 +284,7 @@ export default function AdminDashboard() {
   }
 
   const handleUpdateCashier = () => {
-    if (editingCashier) {
+    if (editingCashier && cashiers) {
       setCashiers(
         cashiers.map((cashier) =>
           cashier.id === editingCashier.id
@@ -327,14 +297,23 @@ export default function AdminDashboard() {
               }
             : cashier,
         ),
-      )
-      resetCashierForm()
-      setShowAddCashier(false)
+      );
+      resetCashierForm();
+      setShowAddCashier(false);
     }
-  }
+  };
 
   const toggleCashierStatus = (id: string) => {
-    setCashiers(cashiers.map((cashier) => (cashier.id === id ? { ...cashier, active: !cashier.active } : cashier)))
+    if (!cashiers) return;
+    setCashiers(cashiers.map((cashier) => (cashier.id === id ? { ...cashier, active: !cashier.active } : cashier)));
+  }
+
+  async function addMenuItem(data: Omit<MenuItem, "id">) {
+    await addDoc(collection(db, "menuItems"), data);
+  }
+
+  if (menuItems === null || categories === null || cashiers === null) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
 
   return (
@@ -386,7 +365,7 @@ export default function AdminDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-lg font-bold">156</div>
+                  <div className="text-lg font-bold">{orders ? orders.length : 0}</div>
                   <p className="text-[10px] text-muted-foreground">+12% from last week</p>
                 </CardContent>
               </Card>
@@ -398,7 +377,7 @@ export default function AdminDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-lg font-bold">TSh 780,000</div>
+                  <div className="text-lg font-bold">TSh {orders ? orders.reduce((sum, o) => sum + (o.total || 0), 0).toLocaleString() : 0}</div>
                   <p className="text-[10px] text-muted-foreground">+8% from last week</p>
                 </CardContent>
               </Card>
@@ -438,7 +417,7 @@ export default function AdminDashboard() {
               </Button>
             </div>
             <div className="grid gap-3">
-              {menuItems.map((item) => (
+              {menuItems?.map((item) => (
                 <Card key={item.id}>
                   <CardContent className="flex justify-between items-center p-3">
                     <div>
@@ -479,7 +458,7 @@ export default function AdminDashboard() {
               </Button>
             </div>
             <div className="grid gap-3">
-              {categories.map((category) => (
+              {categories?.map((category) => (
                 <Card key={category.id}>
                   <CardContent className="flex justify-between items-center p-3">
                     <div>
@@ -527,7 +506,7 @@ export default function AdminDashboard() {
               </Button>
             </div>
             <div className="grid gap-3">
-              {cashiers.map((cashier) => (
+              {cashiers?.map((cashier) => (
                 <Card key={cashier.id}>
                   <CardContent className="flex justify-between items-center p-3">
                     <div>

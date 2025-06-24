@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog"
 import { ShoppingCart, Plus, Minus, CreditCard, QrCode, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
 interface MenuItem {
   id: string
@@ -84,11 +86,13 @@ export default function KioskInterface() {
   const [showReceipt, setShowReceipt] = useState(false)
   const [orderNumber, setOrderNumber] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("")
-
-  const categories = ["All", "Main Course", "Beverages"]
+  const [menuItems, setMenuItems] = useState<MenuItem[] | null>(null)
+  const [categories, setCategories] = useState<{ id: string; name: string }[] | null>(null)
+  const [cashiers, setCashiers] = useState<{ id: string; name: string }[] | null>(null)
+  const [orders, setOrders] = useState<{ id: string; status: string }[] | null>(null)
 
   const filteredItems =
-    selectedCategory === "All" ? menuItems : menuItems.filter((item) => item.category === selectedCategory)
+    selectedCategory === "All" ? menuItems : menuItems?.filter((item) => item.category === selectedCategory)
 
   const addToCart = (item: MenuItem) => {
     setCart((prev) => {
@@ -128,6 +132,63 @@ export default function KioskInterface() {
     setCart([])
   }
 
+  useEffect(() => {
+    // Real-time menuItems
+    const unsubMenu = onSnapshot(
+      collection(db, "menuItems"),
+      (snapshot) => {
+        setMenuItems(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    // Real-time categories
+    const unsubCat = onSnapshot(
+      collection(db, "categories"),
+      (snapshot) => {
+        setCategories && setCategories(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    // Real-time cashiers
+    const unsubCash = onSnapshot(
+      collection(db, "cashiers"),
+      (snapshot) => {
+        setCashiers && setCashiers(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    // Real-time orders (if present)
+    const unsubOrders = onSnapshot(
+      collection(db, "orders"),
+      (snapshot) => {
+        setOrders && setOrders(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    return () => {
+      unsubMenu();
+      unsubCat();
+      unsubCash();
+      unsubOrders();
+    };
+  }, []);
+
+  if (menuItems === null || categories === null || cashiers === null || orders === null) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
       <div className="bg-white shadow-md border-b-2 border-purple-500">
@@ -159,19 +220,19 @@ export default function KioskInterface() {
         <div className="flex gap-2 mb-4 justify-center">
           {categories.map((category) => (
             <Button
-              key={category}
+              key={category.id}
               size="sm"
-              variant={selectedCategory === category ? "default" : "outline"}
-              onClick={() => setSelectedCategory(category)}
+              variant={selectedCategory === category.name ? "default" : "outline"}
+              onClick={() => setSelectedCategory(category.name)}
               className="text-xs h-8 px-3"
             >
-              {category}
+              {category.name}
             </Button>
           ))}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems.map((item) => (
+          {filteredItems?.map((item) => (
             <Card key={item.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="p-0">
                 <img

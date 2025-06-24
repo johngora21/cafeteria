@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { QrCode, Scan, Package, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react"
 import Link from "next/link"
+import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
 interface Order {
   id: string
@@ -38,57 +40,9 @@ interface MenuItem {
   ready: boolean
 }
 
-const mockOrders: Order[] = [
-  {
-    id: "1",
-    orderNumber: "ORD123456",
-    customerName: "John Mwalimu",
-    items: [
-      { name: "Ugali with Beef Stew", quantity: 1, price: 3500 },
-      { name: "Fresh Juice", quantity: 1, price: 1500 },
-    ],
-    total: 5000,
-    status: "ready_for_pickup",
-    timestamp: "2024-01-15 14:30",
-    phoneNumber: "+255 123 456 789",
-  },
-  {
-    id: "2",
-    orderNumber: "ORD123457",
-    customerName: "Mary Juma",
-    items: [{ name: "Rice with Chicken", quantity: 2, price: 4000 }],
-    total: 8000,
-    status: "ordered",
-    timestamp: "2024-01-15 14:25",
-    phoneNumber: "+255 987 654 321",
-  },
-  {
-    id: "3",
-    orderNumber: "ORD123458",
-    customerName: "Peter Moshi",
-    items: [
-      { name: "Chapati with Beans", quantity: 1, price: 2500 },
-      { name: "Tea/Coffee", quantity: 2, price: 1000 },
-    ],
-    total: 4500,
-    status: "ordered",
-    timestamp: "2024-01-15 14:35",
-    phoneNumber: "+255 555 123 456",
-  },
-]
-
-const mockMenuItems: MenuItem[] = [
-  { id: "1", name: "Ugali with Beef Stew", price: 3500, category: "Main Course", ready: true },
-  { id: "2", name: "Rice with Chicken", price: 4000, category: "Main Course", ready: true },
-  { id: "3", name: "Chapati with Beans", price: 2500, category: "Main Course", ready: true },
-  { id: "4", name: "Fresh Juice", price: 1500, category: "Beverages", ready: true },
-  { id: "5", name: "Tea/Coffee", price: 1000, category: "Beverages", ready: true },
-  { id: "6", name: "Mandazi", price: 500, category: "Snacks", ready: false },
-]
-
 export default function CashierPortal() {
-  const [orders, setOrders] = useState<Order[]>(mockOrders)
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(mockMenuItems)
+  const [orders, setOrders] = useState<Order[] | null>(null)
+  const [menuItems, setMenuItems] = useState<MenuItem[] | null>(null)
   const [scannedCode, setScannedCode] = useState("")
   const [showScanner, setShowScanner] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -120,16 +74,16 @@ export default function CashierPortal() {
   }
 
   const updateOrderStatus = (orderId: string, newStatus: Order["status"]) => {
-    setOrders((prev) => prev.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order)))
+    setOrders((prev) => prev?.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order)) ?? [])
   }
 
   const toggleMenuItemAvailability = (itemId: string) => {
-    setMenuItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, ready: !item.ready } : item)))
+    setMenuItems((prev) => prev?.map((item) => (item.id === itemId ? { ...item, ready: !item.ready } : item)) ?? [])
   }
 
   const handleQRScan = () => {
     const orderNumber = scannedCode.toUpperCase()
-    const order = orders.find((o) => o.orderNumber === orderNumber)
+    const order = orders?.find((o) => o.orderNumber === orderNumber)
 
     if (order) {
       // Automatically update status based on current status
@@ -147,6 +101,63 @@ export default function CashierPortal() {
     }
     setScannedCode("")
     setShowScanner(false)
+  }
+
+  useEffect(() => {
+    // Real-time menuItems
+    const unsubMenu = onSnapshot(
+      collection(db, "menuItems"),
+      (snapshot) => {
+        setMenuItems(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    // Real-time categories
+    const unsubCat = onSnapshot(
+      collection(db, "categories"),
+      (snapshot) => {
+        setCategories(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    // Real-time cashiers
+    const unsubCash = onSnapshot(
+      collection(db, "cashiers"),
+      (snapshot) => {
+        setCashiers(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    // Real-time orders (if present)
+    const unsubOrders = onSnapshot(
+      collection(db, "orders"),
+      (snapshot) => {
+        setOrders && setOrders(
+          snapshot.docs.map(
+            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
+          )
+        );
+      }
+    );
+    return () => {
+      unsubMenu();
+      unsubCat();
+      unsubCash();
+      unsubOrders();
+    };
+  }, []);
+
+  if (orders === null || menuItems === null) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
 
   return (
@@ -244,7 +255,7 @@ export default function CashierPortal() {
           <TabsContent value="menu" className="space-y-4">
             <div className="grid gap-3">
               <h2 className="text-sm font-medium">Menu Items</h2>
-              {mockMenuItems.map((item) => (
+              {menuItems.map((item) => (
                 <Card key={item.id}>
                   <CardContent className="flex justify-between items-center p-3">
                     <div>
