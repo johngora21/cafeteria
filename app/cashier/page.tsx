@@ -20,7 +20,7 @@ import { QrCode, Scan, Package, ArrowLeft, CheckCircle, AlertCircle } from "luci
 import Link from "next/link"
 import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot, updateDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { QRScanner } from '@/components/QRScanner'
+import { QRScanner } from '../../components/QRScanner'
 
 interface Order {
   id: string
