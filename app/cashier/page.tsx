@@ -20,7 +20,7 @@ import { QrCode, Scan, Package, ArrowLeft, CheckCircle, AlertCircle } from "luci
 import Link from "next/link"
 import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot, updateDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { QrReader } from 'react-qr-reader'
+import { QRScanner } from '@/components/QRScanner'
 
 interface Order {
   id: string
@@ -374,17 +374,10 @@ export default function CashierPortal() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="bg-gray-100 p-4 rounded-lg text-center">
-              <QrReader
-                constraints={{ facingMode: 'environment' }}
-                onResult={(result, error) => {
-                  if (!!result) {
-                    setScannedCode(result.getText());
-                    // Simulate pressing the process button
-                    setTimeout(() => handleQRScan(), 200);
-                  }
-                }}
-                style={{ width: '100%' }}
-              />
+              <QRScanner onResult={(text) => {
+                setScannedCode(text);
+                setTimeout(() => handleQRScan(), 200);
+              }} />
             </div>
             <div>
               <Label htmlFor="qr-input" className="text-xs">
