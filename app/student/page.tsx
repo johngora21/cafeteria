@@ -180,7 +180,7 @@ export default function StudentPortal() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="flex gap-1 mb-4 overflow-x-auto pb-2">
           {categories.length === 0 ? (
             <span className="text-gray-500 text-xs">No categories found.</span>
@@ -198,7 +198,7 @@ export default function StudentPortal() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {filteredItems && filteredItems.length === 0 ? (
             <span className="text-gray-500 text-xs">No menu items available.</span>
           ) : (
@@ -208,13 +208,13 @@ export default function StudentPortal() {
                   <img
                     src={item.image || "/placeholder.svg"}
                     alt={item.name}
-                    className="w-full h-36 object-cover rounded-t-lg"
+                    className="w-full h-28 sm:h-36 object-cover rounded-t-lg"
                   />
                 </CardHeader>
-                <CardContent className="p-3">
+                <CardContent className="p-2 sm:p-3">
                   <div className="flex justify-between items-start mb-1">
-                    <CardTitle className="text-base">{item.name}</CardTitle>
-                    <Badge variant={item.ready ? "default" : "secondary"} className="text-xs">
+                    <CardTitle className="text-sm sm:text-base">{item.name}</CardTitle>
+                    <Badge variant={item.ready ? "default" : "secondary"} className="text-xs sm:text-sm">
                       {item.ready ? "Ready to Order" : "Not Available"}
                     </Badge>
                   </div>

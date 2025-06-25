@@ -350,7 +350,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <Tabs defaultValue="overview" className="space-y-4">
           <TabsList className="grid w-full grid-cols-5 h-8">
             <TabsTrigger value="overview" className="text-xs">
@@ -431,7 +431,7 @@ export default function AdminDashboard() {
                 Add Item
               </Button>
             </div>
-            <div className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {menuItems?.map((item) => (
                 <Card key={item.id}>
                   <CardContent className="flex justify-between items-center p-3">

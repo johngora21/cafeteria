@@ -174,9 +174,9 @@ export default function CashierPortal() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <Tabs defaultValue="orders" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 h-8">
+          <TabsList className="grid w-full grid-cols-3 h-8 overflow-x-auto text-xs">
             <TabsTrigger value="orders" className="text-xs">
               Orders
             </TabsTrigger>
@@ -189,7 +189,7 @@ export default function CashierPortal() {
           </TabsList>
 
           <TabsContent value="orders" className="space-y-4">
-            <div className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <h2 className="text-sm font-medium">Active Orders</h2>
               {orders
                 .filter((order) => order.status !== "picked_up")
@@ -245,7 +245,7 @@ export default function CashierPortal() {
           </TabsContent>
 
           <TabsContent value="menu" className="space-y-4">
-            <div className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <h2 className="text-sm font-medium">Menu Items</h2>
               {menuItems.map((item) => (
                 <Card key={item.id}>

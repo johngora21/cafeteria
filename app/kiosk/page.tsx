@@ -221,8 +221,8 @@ export default function KioskInterface() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex gap-2 mb-4 justify-center">
+      <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
+        <div className="flex gap-2 mb-4 justify-center overflow-x-auto">
           {categories.map((category) => (
             <Button
               key={category.id}
@@ -236,20 +236,22 @@ export default function KioskInterface() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {filteredItems?.map((item) => (
             <Card key={item.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="p-0">
                 <img
                   src={item.image || "/placeholder.svg"}
                   alt={item.name}
-                  className="w-full h-40 object-cover rounded-t-lg"
+                  className="w-full h-28 sm:h-40 object-cover rounded-t-lg"
                 />
               </CardHeader>
-              <CardContent className="p-3">
+              <CardContent className="p-2 sm:p-3">
                 <div className="flex justify-between items-start mb-1">
-                  <CardTitle className="text-base">{item.name}</CardTitle>
-                  <Badge className="bg-green-500 text-xs">Ready to Order</Badge>
+                  <CardTitle className="text-sm sm:text-base">{item.name}</CardTitle>
+                  <Badge variant={item.ready ? "default" : "secondary"} className="text-xs sm:text-sm">
+                    {item.ready ? "Ready to Order" : "Not Ready"}
+                  </Badge>
                 </div>
                 <CardDescription className="text-xs mb-2 line-clamp-2">{item.description}</CardDescription>
                 <div className="flex justify-between items-center">
