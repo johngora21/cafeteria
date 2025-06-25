@@ -31,7 +31,7 @@ import {
   UserPlus,
 } from "lucide-react"
 import Link from "next/link"
-import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot } from "firebase/firestore"
+import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot, deleteDoc, doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 
 interface MenuItem {
@@ -185,29 +185,29 @@ export default function AdminDashboard() {
     setShowAddItem(true)
   }
 
-  const handleUpdateItem = () => {
-    if (editingItem && menuItems) {
-      setMenuItems(
-      menuItems.map((item) =>
-          item.id === editingItem.id
-            ? {
-                ...item,
-                name: itemForm.name,
-                description: itemForm.description,
-                price: Number.parseInt(itemForm.price),
-                category: itemForm.category,
-              }
-            : item,
-        ),
-      );
-      resetItemForm();
-      setShowAddItem(false);
+  const handleUpdateItem = async () => {
+    if (editingItem) {
+      try {
+        await updateDoc(doc(db, "menuItems", editingItem.id), {
+          name: itemForm.name,
+          description: itemForm.description,
+          price: Number.parseInt(itemForm.price),
+          category: itemForm.category,
+        });
+        resetItemForm();
+        setShowAddItem(false);
+      } catch (error) {
+        console.error("Error updating menu item:", error);
+      }
     }
   };
 
-  const handleDeleteItem = (id: string) => {
-    if (!menuItems) return;
-    setMenuItems(menuItems.filter((item) => item.id !== id));
+  const handleDeleteItem = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "menuItems", id));
+    } catch (error) {
+      console.error("Error deleting menu item:", error);
+    }
   }
 
   const handleAddCategory = async () => {
@@ -230,32 +230,41 @@ export default function AdminDashboard() {
     setShowAddCategory(true)
   }
 
-  const handleUpdateCategory = () => {
-    if (editingCategory && categories) {
-      setCategories(
-        categories.map((cat) =>
-          cat.id === editingCategory.id
-            ? {
-                ...cat,
-                name: categoryForm.name,
-                description: categoryForm.description,
-              }
-            : cat,
-        ),
-      );
-      resetCategoryForm();
-      setShowAddCategory(false);
+  const handleUpdateCategory = async () => {
+    if (editingCategory) {
+      try {
+        await updateDoc(doc(db, "categories", editingCategory.id), {
+          name: categoryForm.name,
+          description: categoryForm.description,
+        });
+        resetCategoryForm();
+        setShowAddCategory(false);
+      } catch (error) {
+        console.error("Error updating category:", error);
+      }
     }
   };
 
-  const handleDeleteCategory = (id: string) => {
-    if (!categories) return;
-    setCategories(categories.filter((cat) => cat.id !== id));
+  const handleDeleteCategory = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "categories", id));
+    } catch (error) {
+      console.error("Error deleting category:", error);
+    }
   }
 
-  const toggleCategoryStatus = (id: string) => {
+  const toggleCategoryStatus = async (id: string) => {
     if (!categories) return;
-    setCategories(categories.map((cat) => (cat.id === id ? { ...cat, active: !cat.active } : cat)))
+    const category = categories.find(cat => cat.id === id);
+    if (category) {
+      try {
+        await updateDoc(doc(db, "categories", id), {
+          active: !category.active
+        });
+      } catch (error) {
+        console.error("Error toggling category status:", error);
+      }
+    }
   }
 
   const handleAddCashier = async () => {
@@ -283,29 +292,35 @@ export default function AdminDashboard() {
     setShowAddCashier(true)
   }
 
-  const handleUpdateCashier = () => {
-    if (editingCashier && cashiers) {
-      setCashiers(
-        cashiers.map((cashier) =>
-          cashier.id === editingCashier.id
-            ? {
-                ...cashier,
-                name: cashierForm.name,
-                email: cashierForm.email,
-                phone: cashierForm.phone,
-                shift: cashierForm.shift,
-              }
-            : cashier,
-        ),
-      );
-      resetCashierForm();
-      setShowAddCashier(false);
+  const handleUpdateCashier = async () => {
+    if (editingCashier) {
+      try {
+        await updateDoc(doc(db, "cashiers", editingCashier.id), {
+          name: cashierForm.name,
+          email: cashierForm.email,
+          phone: cashierForm.phone,
+          shift: cashierForm.shift,
+        });
+        resetCashierForm();
+        setShowAddCashier(false);
+      } catch (error) {
+        console.error("Error updating cashier:", error);
+      }
     }
   };
 
-  const toggleCashierStatus = (id: string) => {
+  const toggleCashierStatus = async (id: string) => {
     if (!cashiers) return;
-    setCashiers(cashiers.map((cashier) => (cashier.id === id ? { ...cashier, active: !cashier.active } : cashier)));
+    const cashier = cashiers.find(c => c.id === id);
+    if (cashier) {
+      try {
+        await updateDoc(doc(db, "cashiers", id), {
+          active: !cashier.active
+        });
+      } catch (error) {
+        console.error("Error toggling cashier status:", error);
+      }
+    }
   }
 
   async function addMenuItem(data: Omit<MenuItem, "id">) {

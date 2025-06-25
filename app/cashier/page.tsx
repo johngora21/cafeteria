@@ -18,8 +18,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { QrCode, Scan, Package, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react"
 import Link from "next/link"
-import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot } from "firebase/firestore"
+import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot, updateDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { QrReader } from 'react-qr-reader'
 
 interface Order {
   id: string
@@ -73,12 +74,27 @@ export default function CashierPortal() {
     }
   }
 
-  const updateOrderStatus = (orderId: string, newStatus: Order["status"]) => {
-    setOrders((prev) => prev?.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order)) ?? [])
+  const updateOrderStatus = async (orderId: string, newStatus: Order["status"]) => {
+    try {
+      await updateDoc(doc(db, "orders", orderId), {
+        status: newStatus
+      });
+    } catch (error) {
+      console.error("Error updating order status:", error);
+    }
   }
 
-  const toggleMenuItemAvailability = (itemId: string) => {
-    setMenuItems((prev) => prev?.map((item) => (item.id === itemId ? { ...item, ready: !item.ready } : item)) ?? [])
+  const toggleMenuItemAvailability = async (itemId: string) => {
+    try {
+      const item = menuItems?.find(item => item.id === itemId);
+      if (item) {
+        await updateDoc(doc(db, "menuItems", itemId), {
+          ready: !item.ready
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling menu item availability:", error);
+    }
   }
 
   const handleQRScan = () => {
@@ -115,33 +131,11 @@ export default function CashierPortal() {
         );
       }
     );
-    // Real-time categories
-    const unsubCat = onSnapshot(
-      collection(db, "categories"),
-      (snapshot) => {
-        setCategories(
-          snapshot.docs.map(
-            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
-          )
-        );
-      }
-    );
-    // Real-time cashiers
-    const unsubCash = onSnapshot(
-      collection(db, "cashiers"),
-      (snapshot) => {
-        setCashiers(
-          snapshot.docs.map(
-            (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
-          )
-        );
-      }
-    );
-    // Real-time orders (if present)
+    // Real-time orders
     const unsubOrders = onSnapshot(
       collection(db, "orders"),
       (snapshot) => {
-        setOrders && setOrders(
+        setOrders(
           snapshot.docs.map(
             (doc: QueryDocumentSnapshot<DocumentData>) => ({ id: doc.id, ...doc.data() })
           )
@@ -150,8 +144,6 @@ export default function CashierPortal() {
     );
     return () => {
       unsubMenu();
-      unsubCat();
-      unsubCash();
       unsubOrders();
     };
   }, []);
@@ -287,17 +279,25 @@ export default function CashierPortal() {
                   <CardTitle className="text-xs font-medium">Today&apos;s Orders</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-lg font-bold">24</div>
-                  <p className="text-[10px] text-muted-foreground">+12% from yesterday</p>
+                  <div className="text-lg font-bold">
+                    {orders.filter(order => {
+                      const orderDate = new Date(order.timestamp).toDateString();
+                      const today = new Date().toDateString();
+                      return orderDate === today;
+                    }).length}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Orders placed today</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="p-3 pb-1">
-                  <CardTitle className="text-xs font-medium">Revenue</CardTitle>
+                  <CardTitle className="text-xs font-medium">Total Revenue</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-lg font-bold">TSh 156,000</div>
-                  <p className="text-[10px] text-muted-foreground">+8% from yesterday</p>
+                  <div className="text-lg font-bold">
+                    TSh {orders.reduce((sum, order) => sum + (order.total || 0), 0).toLocaleString()}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">All time revenue</p>
                 </CardContent>
               </Card>
               <Card>
@@ -305,20 +305,61 @@ export default function CashierPortal() {
                   <CardTitle className="text-xs font-medium">Avg. Order Value</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-lg font-bold">TSh 6,500</div>
-                  <p className="text-[10px] text-muted-foreground">+3% from yesterday</p>
+                  <div className="text-lg font-bold">
+                    TSh {orders.length > 0 
+                      ? Math.round(orders.reduce((sum, order) => sum + (order.total || 0), 0) / orders.length).toLocaleString()
+                      : 0
+                    }
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Average per order</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="p-3 pb-1">
-                  <CardTitle className="text-xs font-medium">Popular Item</CardTitle>
+                  <CardTitle className="text-xs font-medium">Total Orders</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-lg font-bold">Rice & Chicken</div>
-                  <p className="text-[10px] text-muted-foreground">18 orders today</p>
+                  <div className="text-lg font-bold">{orders.length}</div>
+                  <p className="text-[10px] text-muted-foreground">All time orders</p>
                 </CardContent>
               </Card>
             </div>
+            
+            {/* Popular Items Section */}
+            <Card>
+              <CardHeader className="p-3 pb-1">
+                <CardTitle className="text-xs font-medium">Popular Items</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                {(() => {
+                  const itemCounts: { [key: string]: number } = {};
+                  orders.forEach(order => {
+                    order.items.forEach(item => {
+                      itemCounts[item.name] = (itemCounts[item.name] || 0) + item.quantity;
+                    });
+                  });
+                  
+                  const popularItems = Object.entries(itemCounts)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 5);
+                  
+                  if (popularItems.length === 0) {
+                    return <p className="text-xs text-gray-500">No orders yet</p>;
+                  }
+                  
+                  return (
+                    <div className="space-y-2">
+                      {popularItems.map(([itemName, count]) => (
+                        <div key={itemName} className="flex justify-between items-center text-xs">
+                          <span className="truncate">{itemName}</span>
+                          <Badge variant="secondary" className="text-[10px]">{count} orders</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
@@ -328,13 +369,22 @@ export default function CashierPortal() {
           <DialogHeader>
             <DialogTitle className="text-base">Scan QR Code</DialogTitle>
             <DialogDescription className="text-xs">
-              Enter the order number from the QR code or use camera to scan
+              Scan the order QR code using your device camera
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="bg-gray-100 p-4 rounded-lg text-center">
-              <QrCode className="w-12 h-12 mx-auto text-gray-400 mb-2" />
-              <p className="text-xs text-gray-600">Camera scanner would appear here</p>
+              <QrReader
+                constraints={{ facingMode: 'environment' }}
+                onResult={(result, error) => {
+                  if (!!result) {
+                    setScannedCode(result.getText());
+                    // Simulate pressing the process button
+                    setTimeout(() => handleQRScan(), 200);
+                  }
+                }}
+                style={{ width: '100%' }}
+              />
             </div>
             <div>
               <Label htmlFor="qr-input" className="text-xs">

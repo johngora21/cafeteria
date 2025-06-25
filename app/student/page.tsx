@@ -19,6 +19,9 @@ import { ShoppingCart, Plus, Minus, ArrowLeft, CreditCard, QrCode } from "lucide
 import Link from "next/link"
 import { collection, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { useCart } from "@/hooks/useCart"
+import { CartSummary } from "@/components/CartSummary"
+import { QRCodeSVG } from 'qrcode.react'
 
 interface MenuItem {
   id: string
@@ -30,14 +33,18 @@ interface MenuItem {
   image: string
 }
 
-interface CartItem extends MenuItem {
-  quantity: number
-}
-
 export default function StudentPortal() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  const [cart, setCart] = useState<CartItem[]>([])
+  const {
+    cart,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    getTotalPrice,
+    getTotalItems,
+    getItemQuantity,
+  } = useCart();
+  
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [showCheckout, setShowCheckout] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
@@ -53,42 +60,39 @@ export default function StudentPortal() {
   const filteredItems =
     selectedCategory === "All" ? menuItems : menuItems?.filter((item) => item.category === selectedCategory)
 
-  const addToCart = (item: MenuItem) => {
-    setCart((prev) => {
-      const existing = prev.find((cartItem) => cartItem.id === item.id)
-      if (existing) {
-        return prev.map((cartItem) =>
-          cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem,
-        )
-      }
-      return [...prev, { ...item, quantity: 1 }]
-    })
-  }
-
-  const removeFromCart = (id: string) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === id)
-      if (existing && existing.quantity > 1) {
-        return prev.map((item) => (item.id === id ? { ...item, quantity: item.quantity - 1 } : item))
-      }
-      return prev.filter((item) => item.id !== id)
-    })
-  }
-
-  const getTotalPrice = () => {
-    return cart.reduce((total, item) => total + item.price * item.quantity, 0)
-  }
-
-  const getTotalItems = () => {
-    return cart.reduce((total, item) => total + item.quantity, 0)
-  }
-
-  const handlePayment = () => {
-    const newOrderNumber = `ORD${Date.now().toString().slice(-6)}`
-    setOrderNumber(newOrderNumber)
-    setShowPayment(false)
-    setShowQRCode(true)
-    setCart([])
+  const handlePayment = async () => {
+    try {
+      const newOrderNumber = `ORD${Date.now().toString().slice(-6)}`
+      const orderData = {
+        orderNumber: newOrderNumber,
+        customerName: "Student", // Could be made dynamic later
+        phoneNumber: phoneNumber,
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity
+        })),
+        total: getTotalPrice(),
+        status: "ordered",
+        timestamp: new Date().toISOString(),
+        specialInstructions: specialInstructions,
+        source: "student_portal"
+      };
+      
+      await addDoc(collection(db, "orders"), orderData);
+      
+      setOrderNumber(newOrderNumber);
+      setShowPayment(false);
+      setShowQRCode(true);
+      clearCart();
+      setPhoneNumber("");
+      setSpecialInstructions("");
+    } catch (error) {
+      console.error("Error placing order:", error);
+      // You could add error handling UI here
+    }
   }
 
   useEffect(() => {
@@ -144,7 +148,8 @@ export default function StudentPortal() {
     };
   }, []);
 
-  if (!mounted || menuItems === null || categories === null || cashiers === null || orders === null) {
+  // Show loading state while data is being fetched
+  if (menuItems === null || categories === null || cashiers === null || orders === null) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
 
@@ -217,7 +222,7 @@ export default function StudentPortal() {
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-semibold text-green-600">TSh {item.price.toLocaleString()}</span>
                     <div className="flex items-center gap-1">
-                      {cart.find((cartItem) => cartItem.id === item.id) ? (
+                      {getItemQuantity(item.id) > 0 ? (
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
@@ -228,7 +233,7 @@ export default function StudentPortal() {
                             <Minus className="w-3 h-3" />
                           </Button>
                           <span className="font-medium text-sm w-5 text-center">
-                            {cart.find((cartItem) => cartItem.id === item.id)?.quantity}
+                            {getItemQuantity(item.id)}
                           </span>
                           <Button
                             size="sm"
@@ -252,7 +257,149 @@ export default function StudentPortal() {
           )}
         </div>
       </div>
-      {/* ...rest of your dialogs and UI... */}
+      {/* Checkout Dialog */}
+      <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Checkout</DialogTitle>
+            <DialogDescription className="text-xs">Review your order and provide contact details</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <CartSummary
+                items={cart}
+                onUpdateQuantity={updateQuantity}
+                onRemoveItem={removeFromCart}
+                total={getTotalPrice()}
+                showActions={true}
+                compact={true}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="phone" className="text-xs">Phone Number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="Enter your phone number"
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="instructions" className="text-xs">Special Instructions (Optional)</Label>
+                <Textarea
+                  id="instructions"
+                  value={specialInstructions}
+                  onChange={(e) => setSpecialInstructions(e.target.value)}
+                  placeholder="Any special requests or dietary requirements"
+                  className="text-sm"
+                  rows={2}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowCheckout(false)} className="text-xs">
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setShowCheckout(false);
+                setShowPayment(true);
+              }}
+              disabled={!phoneNumber.trim()}
+              className="text-xs"
+            >
+              Proceed to Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Dialog */}
+      <Dialog open={showPayment} onOpenChange={setShowPayment}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Payment</DialogTitle>
+            <DialogDescription className="text-xs">Choose your payment method to complete the order</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <CartSummary
+                items={cart}
+                onUpdateQuantity={updateQuantity}
+                onRemoveItem={removeFromCart}
+                total={getTotalPrice()}
+                showActions={true}
+                compact={true}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handlePayment()}
+                className="h-12 text-xs"
+              >
+                <CreditCard className="w-4 h-4 mr-1" />
+                Mobile Money
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handlePayment()}
+                className="h-12 text-xs"
+              >
+                <CreditCard className="w-4 h-4 mr-1" />
+                Card Payment
+              </Button>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowPayment(false)} className="text-xs">
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code Dialog */}
+      <Dialog open={showQRCode} onOpenChange={setShowQRCode}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base text-green-600">Order Placed Successfully!</DialogTitle>
+            <DialogDescription className="text-xs">
+              Your order has been placed. Please show this QR code at the pickup counter.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-center">
+            <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
+              {orderNumber && <QRCodeSVG value={orderNumber} size={128} />}
+              <p className="text-sm font-medium">Order #{orderNumber}</p>
+              <p className="text-xs text-gray-600 mt-1">Show this at the pickup counter</p>
+            </div>
+            <div className="bg-green-50 p-3 rounded-lg">
+              <h3 className="font-medium text-sm mb-1">Order Details</h3>
+              <p className="text-xs">
+                Status: <Badge className="bg-yellow-500 text-[10px]">Preparing</Badge>
+              </p>
+              <p className="text-xs">Estimated Time: 15-20 minutes</p>
+              <p className="text-xs">Total: TSh {getTotalPrice().toLocaleString()}</p>
+              {phoneNumber && <p className="text-xs">Contact: {phoneNumber}</p>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="sm" onClick={() => setShowQRCode(false)} className="w-full text-xs">
+              Start New Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

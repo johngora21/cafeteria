@@ -1,117 +1,79 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Coffee, Smartphone, QrCode, Users } from "lucide-react"
-import Link from "next/link"
+"use client"
 
-export default function HomePage() {
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+const portals = [
+  { label: "Admin", value: "/admin" },
+  { label: "Student", value: "/student" },
+  { label: "Kiosk", value: "/kiosk" },
+  { label: "Cashier", value: "/cashier" },
+];
+
+export default function Home() {
+  const [selected, setSelected] = useState(portals[1].value); // Default to Student
+  const router = useRouter();
+
+  const handleEnter = (e: React.FormEvent) => {
+    e.preventDefault();
+    router.push(selected);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100">
-      <div className="container mx-auto px-4 py-6">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">CoICT Cafeteria</h1>
-          <p className="text-base md:text-lg text-gray-600 mb-6">
-            University of Dar es Salaam - Smart Food Ordering System
-          </p>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-blue-100">
+      <form
+        onSubmit={handleEnter}
+        className="bg-white shadow-2xl rounded-2xl p-8 w-full max-w-sm flex flex-col gap-7 animate-fade-in"
+        style={{ minWidth: 320 }}
+      >
+        <div className="flex flex-col items-center gap-2 mb-2">
+          <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shadow-md mb-2">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M8 15c1.333-2 6.667-2 8 0" /><path d="M9 9h.01" /><path d="M15 9h.01" /></svg>
+          </div>
+          <h1 className="text-2xl font-bold text-center text-blue-700 tracking-tight">Cafeteria System</h1>
+          <p className="text-gray-500 text-sm text-center">Welcome! Please select your portal to continue.</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3">
-                <Smartphone className="w-6 h-6 text-blue-600" />
-              </div>
-              <CardTitle className="text-lg">Student Portal</CardTitle>
-              <CardDescription className="text-sm">Browse menu, place orders, and track your food</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center pt-2">
-              <Link href="/student">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">Order Food</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3">
-                <QrCode className="w-6 h-6 text-green-600" />
-              </div>
-              <CardTitle className="text-lg">Cashier Portal</CardTitle>
-              <CardDescription className="text-sm">Scan QR codes, manage orders, and update menu</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center pt-2">
-              <Link href="/cashier">
-                <Button className="w-full bg-green-600 hover:bg-green-700">Cashier Login</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3">
-                <Coffee className="w-6 h-6 text-purple-600" />
-              </div>
-              <CardTitle className="text-lg">Self-Service Kiosk</CardTitle>
-              <CardDescription className="text-sm">Touch screen ordering for quick service</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center pt-2">
-              <Link href="/kiosk">
-                <Button className="w-full bg-purple-600 hover:bg-purple-700">Start Ordering</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
-                <Users className="w-6 h-6 text-red-600" />
-              </div>
-              <CardTitle className="text-lg">Admin Portal</CardTitle>
-              <CardDescription className="text-sm">
-                Manage menu, categories, cashiers, and system settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center pt-2">
-              <Link href="/admin">
-                <Button className="w-full bg-red-600 hover:bg-red-700">Admin Dashboard</Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="mt-12 text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">System Features</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="mx-auto w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mb-2">
-                <Smartphone className="w-5 h-5 text-orange-600" />
-              </div>
-              <h3 className="font-medium text-sm mb-1">Mobile Ordering</h3>
-              <p className="text-xs text-gray-600">Order from your phone anytime</p>
-            </div>
-            <div className="text-center">
-              <div className="mx-auto w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-2">
-                <QrCode className="w-5 h-5 text-blue-600" />
-              </div>
-              <h3 className="font-medium text-sm mb-1">QR Code Pickup</h3>
-              <p className="text-xs text-gray-600">Quick and contactless pickup</p>
-            </div>
-            <div className="text-center">
-              <div className="mx-auto w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mb-2">
-                <Coffee className="w-5 h-5 text-green-600" />
-              </div>
-              <h3 className="font-medium text-sm mb-1">Real-time Status</h3>
-              <p className="text-xs text-gray-600">Track your order progress</p>
-            </div>
-            <div className="text-center">
-              <div className="mx-auto w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mb-2">
-                <Users className="w-5 h-5 text-red-600" />
-              </div>
-              <h3 className="font-medium text-sm mb-1">Multi-Platform</h3>
-              <p className="text-xs text-gray-600">Mobile, web, and kiosk access</p>
-            </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="portal" className="text-sm font-medium text-gray-700">
+            Select Portal
+          </label>
+          <div className="relative">
+            <select
+              id="portal"
+              value={selected}
+              onChange={e => setSelected(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-base w-full focus:outline-none focus:ring-2 focus:ring-blue-400 transition shadow-sm bg-gray-50 hover:bg-blue-50 cursor-pointer appearance-none"
+            >
+              {portals.map((p) => (
+                <option key={p.value} value={p.value} className="text-base">
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+              ▼
+            </span>
           </div>
         </div>
-      </div>
+        <button
+          type="submit"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg shadow-md text-lg transition-all duration-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          Enter
+        </button>
+      </form>
+      <footer className="mt-8 text-xs text-gray-400 text-center select-none">
+        &copy; {new Date().getFullYear()} Cafeteria System. All rights reserved.
+      </footer>
+      <style jsx global>{`
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.7s cubic-bezier(.4,0,.2,1);
+        }
+      `}</style>
     </div>
-  )
+  );
 }

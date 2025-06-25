@@ -16,6 +16,9 @@ import { ShoppingCart, Plus, Minus, CreditCard, QrCode, ArrowLeft } from "lucide
 import Link from "next/link"
 import { collection, getDocs, addDoc, QueryDocumentSnapshot, DocumentData, onSnapshot } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { useCart } from "@/hooks/useCart"
+import { CartSummary } from "@/components/CartSummary"
+import { QRCodeSVG } from 'qrcode.react'
 
 interface MenuItem {
   id: string
@@ -25,10 +28,6 @@ interface MenuItem {
   category: string
   ready: boolean
   image: string
-}
-
-interface CartItem extends MenuItem {
-  quantity: number
 }
 
 const menuItems: MenuItem[] = [
@@ -80,7 +79,17 @@ const menuItems: MenuItem[] = [
 ]
 
 export default function KioskInterface() {
-  const [cart, setCart] = useState<CartItem[]>([])
+  const {
+    cart,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    getTotalPrice,
+    getTotalItems,
+    getItemQuantity,
+  } = useCart();
+  
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [showPayment, setShowPayment] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
@@ -94,42 +103,38 @@ export default function KioskInterface() {
   const filteredItems =
     selectedCategory === "All" ? menuItems : menuItems?.filter((item) => item.category === selectedCategory)
 
-  const addToCart = (item: MenuItem) => {
-    setCart((prev) => {
-      const existing = prev.find((cartItem) => cartItem.id === item.id)
-      if (existing) {
-        return prev.map((cartItem) =>
-          cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem,
-        )
-      }
-      return [...prev, { ...item, quantity: 1 }]
-    })
-  }
-
-  const removeFromCart = (id: string) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === id)
-      if (existing && existing.quantity > 1) {
-        return prev.map((item) => (item.id === id ? { ...item, quantity: item.quantity - 1 } : item))
-      }
-      return prev.filter((item) => item.id !== id)
-    })
-  }
-
-  const getTotalPrice = () => {
-    return cart.reduce((total, item) => total + item.price * item.quantity, 0)
-  }
-
-  const getTotalItems = () => {
-    return cart.reduce((total, item) => total + item.quantity, 0)
-  }
-
-  const handlePayment = () => {
-    const newOrderNumber = `KIOSK${Date.now().toString().slice(-6)}`
-    setOrderNumber(newOrderNumber)
-    setShowPayment(false)
-    setShowReceipt(true)
-    setCart([])
+  const handlePayment = async () => {
+    try {
+      const newOrderNumber = `KIOSK${Date.now().toString().slice(-6)}`
+      const orderData = {
+        orderNumber: newOrderNumber,
+        customerName: "Kiosk Customer", // Could be made dynamic later
+        phoneNumber: "", // Kiosk orders might not need phone
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity
+        })),
+        total: getTotalPrice(),
+        status: "ordered",
+        timestamp: new Date().toISOString(),
+        specialInstructions: "",
+        source: "kiosk"
+      };
+      
+      await addDoc(collection(db, "orders"), orderData);
+      
+      setOrderNumber(newOrderNumber);
+      setShowPayment(false);
+      setShowReceipt(true);
+      clearCart();
+      setPaymentMethod("");
+    } catch (error) {
+      console.error("Error placing order:", error);
+      // You could add error handling UI here
+    }
   }
 
   useEffect(() => {
@@ -250,7 +255,7 @@ export default function KioskInterface() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-semibold text-green-600">TSh {item.price.toLocaleString()}</span>
                   <div className="flex items-center gap-2">
-                    {cart.find((cartItem) => cartItem.id === item.id) ? (
+                    {getItemQuantity(item.id) > 0 ? (
                       <div className="flex items-center gap-1">
                         <Button
                           size="sm"
@@ -261,7 +266,7 @@ export default function KioskInterface() {
                           <Minus className="w-4 h-4" />
                         </Button>
                         <span className="font-medium text-sm w-6 text-center">
-                          {cart.find((cartItem) => cartItem.id === item.id)?.quantity}
+                          {getItemQuantity(item.id)}
                         </span>
                         <Button size="sm" onClick={() => addToCart(item)} className="h-8 w-8 p-0">
                           <Plus className="w-4 h-4" />
@@ -311,21 +316,14 @@ export default function KioskInterface() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-gray-50 p-3 rounded-lg">
-              <h3 className="font-medium text-sm mb-2">Order Summary</h3>
-              {cart.map((item) => (
-                <div key={item.id} className="flex justify-between items-center mb-1 text-xs">
-                  <span>
-                    {item.quantity}x {item.name}
-                  </span>
-                  <span className="font-medium">TSh {(item.price * item.quantity).toLocaleString()}</span>
-                </div>
-              ))}
-              <div className="border-t pt-2 mt-2">
-                <div className="flex justify-between items-center font-medium text-sm">
-                  <span>Total:</span>
-                  <span className="text-green-600">TSh {getTotalPrice().toLocaleString()}</span>
-                </div>
-              </div>
+              <CartSummary
+                items={cart}
+                onUpdateQuantity={updateQuantity}
+                onRemoveItem={removeFromCart}
+                total={getTotalPrice()}
+                showActions={false}
+                compact={true}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -389,8 +387,8 @@ export default function KioskInterface() {
           </DialogHeader>
           <div className="space-y-3 text-center">
             <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
-              <QrCode className="w-16 h-16 mx-auto text-gray-400 mb-2" />
-              <p className="text-sm font-medium">Order #{orderNumber}</p>
+              {orderNumber && <QRCodeSVG value={orderNumber} size={128} />}
+              <p className="text-sm font-medium mt-2">Order #{orderNumber}</p>
               <p className="text-xs text-gray-600 mt-1">Show this at the pickup counter</p>
             </div>
             <div className="bg-green-50 p-3 rounded-lg">
