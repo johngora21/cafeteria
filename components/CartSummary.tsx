@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Plus, Minus, Trash2 } from "lucide-react"
@@ -14,7 +15,7 @@ interface CartSummaryProps {
   items: CartItem[]
   onUpdateQuantity: (id: string, quantity: number) => void
   onRemoveItem: (id: string) => void
-  total: number
+  onClearCart?: () => void
   showActions?: boolean
   compact?: boolean
 }
@@ -23,10 +24,12 @@ export function CartSummary({
   items, 
   onUpdateQuantity, 
   onRemoveItem, 
-  total, 
+  onClearCart,
   showActions = true,
   compact = false 
 }: CartSummaryProps) {
+  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
   if (items.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -105,6 +108,18 @@ export function CartSummary({
           </span>
         </div>
       </div>
+
+      {showActions && (
+        <div className="mt-4 space-x-2 flex justify-end">
+          <Button
+            variant="outline"
+            onClick={onClearCart}
+            className="text-sm"
+          >
+            Clear Cart
+          </Button>
+        </div>
+      )}
     </div>
   );
 } 
