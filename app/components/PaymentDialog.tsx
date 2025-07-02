@@ -184,12 +184,9 @@ export function PaymentDialog({
           <DialogTitle>Complete Your Payment</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col space-y-4">
-          <div className="text-center">
+                      <div className="text-center">
             <div className="text-lg font-semibold">
-              Cart Total: TSh {amount.toLocaleString()}
-            </div>
-            <div className="text-sm text-muted-foreground mt-1">
-              (Test Mode: Will charge TSh 450)
+              Amount to Pay: TSh {amount.toLocaleString()}
             </div>
           </div>
 
@@ -227,7 +224,7 @@ export function PaymentDialog({
                 {isProcessing ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 ) : null}
-                {isProcessing ? "Processing..." : "Pay Now (Test: TSh 450)"}
+                {isProcessing ? "Processing..." : "Pay Now"}
               </Button>
             </div>
           ) : (

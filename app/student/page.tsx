@@ -22,7 +22,7 @@ import { db } from "@/lib/firebase"
 import { useCart } from "@/hooks/useCart"
 import { CartSummary } from "@/components/CartSummary"
 import { QRCodeSVG } from 'qrcode.react'
-import { PaymentDialog } from "@/components/PaymentDialog"
+import { PaymentDialog } from "@/app/components/PaymentDialog"
 import { toast } from "@/components/ui/use-toast"
 
 interface MenuItem {

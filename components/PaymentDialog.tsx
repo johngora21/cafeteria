@@ -78,13 +78,15 @@ export function PaymentDialog({
 
       const status = data.message?.payment_status || data.message?.status;
       setStatusMessage(data.message?.message || "Processing payment...");
-      console.log(`Payment status check #${statusCheckCount+1}:`, status);
+      console.log(`Payment status check #${statusCheckCount+1}:`, status, data.message);
 
-      if (status === "SUCCESS" || (data.message?.status === "success" && data.message?.message === "Wallet payment successful")) {
+      // Check for COMPLETED status (this is what ZenoPay returns for successful payments)
+      if (status === "COMPLETED" || status === "SUCCESS" || (data.message?.status === "success" && data.message?.message === "Wallet payment successful")) {
         setPaymentStatus("SUCCESS");
         stopPolling();
+        setIsProcessing(false);
         toast({
-          title: "Payment Successful",
+          title: "Payment Successful!",
           description: "Your payment has been processed successfully.",
         });
         
@@ -98,6 +100,7 @@ export function PaymentDialog({
             window.location.href = "/orders"; // Redirect to orders page
           }, 2000);
         }
+        return; // Exit early to prevent further polling
       } else if (status === "FAILED" || data.message?.status === "failed") {
         setPaymentStatus("FAILED");
         setStatusMessage(data.message?.message || "Payment failed");

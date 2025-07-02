@@ -2,14 +2,12 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createPayment } from "@/lib/zenopay";
 
 const DEFAULT_EMAIL = "mazikuben2@gmail.com";
-const TEST_AMOUNT = 450; // Fixed test amount for all payments
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
     // Validate required fields from the frontend
-    if (!body.customerName || !body.phoneNumber) {
+    if (!body.customerName || !body.phoneNumber || !body.amount) {
       return NextResponse.json(
         { success: false, message: "Missing required fields" },
         { status: 400 }
@@ -26,17 +24,14 @@ export async function POST(request: NextRequest) {
     // Prepare the paymentOptions object for the ZenoPay SDK
     // The keys here must match the `PaymentOptionsType` interface
     const paymentOptions = {
-      amountToCharge: TEST_AMOUNT, // Use fixed test amount instead of body.amount
+      amountToCharge: body.amount, // Use actual order amount
       customerName: body.customerName.trim(),
       customerEmail: body.customerEmail || DEFAULT_EMAIL,
       customerPhoneNumber: body.phoneNumber, // Already formatted in the dialog
       callbackURL: callbackURL, // Add the required callbackURL
     };
 
-    console.log("Creating payment with test amount:", {
-      ...paymentOptions,
-      displayAmount: body.amount, // Log both test and display amounts
-    });
+    console.log("Creating payment:", paymentOptions);
 
     const result = await createPayment(paymentOptions);
     return NextResponse.json(result);
