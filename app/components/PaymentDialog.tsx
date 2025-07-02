@@ -25,6 +25,10 @@ export function PaymentDialog({
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollCount, setPollCount] = useState(0);
+  const MAX_POLLS = 20; // Maximum number of polling attempts
+  const POLL_INTERVAL = 3000; // Poll every 3 seconds
   
   // Form fields
   const [customerName, setCustomerName] = useState("");
@@ -52,7 +56,96 @@ export function PaymentDialog({
     return cleaned;
   };
 
-  // Function to check payment status
+  // Effect to reset state when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsProcessing(false);
+      setIsChecking(false);
+      setPaymentStatus(null);
+      setOrderId(null);
+      setStatusMessage("");
+      setIsPolling(false);
+      setPollCount(0);
+      // Clear form fields for a fresh start
+      setCustomerName("");
+      setPhoneNumber("");
+    }
+  }, [isOpen]);
+
+  // Effect for automatic polling
+  useEffect(() => {
+    let pollTimer: NodeJS.Timeout;
+
+    const startPolling = async () => {
+      if (!orderId || !isPolling || pollCount >= MAX_POLLS) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/payment/status?orderId=${orderId}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+          console.log(`Poll #${pollCount + 1} failed:`, data);
+          return;
+        }
+
+        const sdkMessage = data.message || {};
+        console.log(`Poll #${pollCount + 1} status:`, sdkMessage.payment_status);
+
+        // Handle COMPLETED status
+        if (sdkMessage.payment_status === "COMPLETED") {
+          setPaymentStatus("SUCCESS");
+          setStatusMessage("Payment completed successfully!");
+          setIsPolling(false);
+          
+          const trimmedName = customerName.trim();
+          const formattedPhone = formatPhoneNumber(phoneNumber);
+          
+          if (trimmedName && formattedPhone && onSuccess) {
+            onSuccess(orderId, { 
+              name: trimmedName,
+              phone: formattedPhone
+            });
+          }
+          return;
+        }
+
+        // Handle FAILED status
+        if (sdkMessage.payment_status === "FAILED") {
+          setPaymentStatus("FAILED");
+          setStatusMessage("Payment failed. Please try again.");
+          setIsPolling(false);
+          return;
+        }
+
+        // Continue polling if still pending
+        setPollCount(prev => prev + 1);
+        
+        // If reached max polls, stop polling but keep status as pending
+        if (pollCount + 1 >= MAX_POLLS) {
+          setIsPolling(false);
+          setStatusMessage("Payment status check timed out. Please verify manually.");
+        }
+
+      } catch (error) {
+        console.error("Polling error:", error);
+        // Don't stop polling on network errors, just skip this attempt
+      }
+    };
+
+    if (isPolling && orderId) {
+      pollTimer = setTimeout(startPolling, POLL_INTERVAL);
+    }
+
+    return () => {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+      }
+    };
+  }, [isPolling, orderId, pollCount, customerName, phoneNumber, onSuccess]);
+
+  // Function to check payment status manually
   const checkStatus = async () => {
     if (!orderId) return;
     
@@ -83,8 +176,26 @@ export function PaymentDialog({
           title: "Payment Successful!",
           description: "Your order has been confirmed.",
         });
+        
+        // Ensure we have valid customer data before calling success
+        const trimmedName = customerName.trim();
+        const formattedPhone = formatPhoneNumber(phoneNumber);
+        
+        if (!trimmedName || !formattedPhone) {
+          console.error("Missing customer data:", { customerName, phoneNumber });
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Missing customer information. Please try again.",
+          });
+          return;
+        }
+        
         if (onSuccess) {
-          onSuccess(orderId, { name: customerName, phone: phoneNumber });
+          onSuccess(orderId, { 
+            name: trimmedName,
+            phone: formattedPhone
+          });
         }
         return; // Exit early on success
       }
@@ -118,20 +229,6 @@ export function PaymentDialog({
     }
   };
 
-  // Effect to reset state when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      setIsProcessing(false);
-      setIsChecking(false);
-      setPaymentStatus(null);
-      setOrderId(null);
-      setStatusMessage("");
-      // Clear form fields for a fresh start
-      setCustomerName("");
-      setPhoneNumber("");
-    }
-  }, [isOpen]);
-
   const handlePayment = async () => {
     if (!customerName.trim()) {
       toast({ variant: "destructive", title: "Name is required." });
@@ -163,6 +260,9 @@ export function PaymentDialog({
         setOrderId(data.message.order_id);
         setPaymentStatus("PENDING");
         setStatusMessage("Request sent! Check your phone for a USSD prompt to complete the payment.");
+        // Start automatic polling
+        setIsPolling(true);
+        setPollCount(0);
       } else {
         setPaymentStatus(null); // Go back to the form
         setStatusMessage("");
@@ -260,19 +360,34 @@ export function PaymentDialog({
                         3. Click below to verify
                       </p>
                     </div>
-                    <Button 
-                      onClick={checkStatus} 
-                      disabled={isChecking} 
-                      className="w-full" 
-                      variant="outline"
-                    >
-                      {isChecking ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                      )}
-                      {isChecking ? "Checking..." : "Verify Payment"}
-                    </Button>
+                    <div className="space-y-2">
+                      {isPolling ? (
+                        <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Auto-checking payment ({pollCount}/{MAX_POLLS})</span>
+                        </div>
+                      ) : null}
+                      
+                      <Button 
+                        onClick={checkStatus} 
+                        disabled={isChecking || isPolling} 
+                        className="w-full" 
+                        variant="outline"
+                      >
+                        {isChecking ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        {isChecking ? "Checking..." : "Verify Payment Manually"}
+                      </Button>
+                      
+                      {!isPolling && pollCount >= MAX_POLLS ? (
+                        <p className="text-xs text-center text-amber-600">
+                          Auto-check timed out. Please verify manually.
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                 </>
               )}

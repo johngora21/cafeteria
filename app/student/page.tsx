@@ -107,9 +107,26 @@ export default function StudentPortal() {
   }
 
   const handlePaymentSuccess = async (zenoPayOrderId: string, customerData?: { name: string; phone: string }) => {
-    // Update the order with the ZenoPay order ID and customer info
-    if (orderId && customerData) {
-      try {
+    if (!customerData?.name || !customerData?.phone) {
+      console.error("Invalid customer data received:", customerData);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Missing or invalid customer information from payment.",
+      });
+      return;
+    }
+
+    try {
+      // First update customer state for the receipt
+      const trimmedName = customerData.name.trim();
+      const formattedPhone = customerData.phone.trim();
+      
+      setCustomerName(trimmedName);
+      setCustomerPhone(formattedPhone);
+
+      // Then update Firebase if we have an order ID
+      if (orderId) {
         const updateData = {
           zenoPayOrderId,
           paymentStatus: "SUCCESS",
@@ -119,32 +136,39 @@ export default function StudentPortal() {
           phoneNumber: customerData.phone
         };
         
-        // Update order in Firebase
         await updateDoc(doc(db, "orders", orderId), updateData);
-        
-        // Store customer info for receipt
-        setCustomerName(customerData.name);
-        setCustomerPhone(customerData.phone);
         
         console.log("Order updated with payment and customer info:", {
           orderId,
           zenoPayOrderId,
-          customerData
-        });
-      } catch (error) {
-        console.error("Error updating order with payment info:", error);
-        toast({
-          variant: "destructive",
-          title: "Warning",
-          description: "Order paid but failed to save customer details. Please show this receipt at pickup.",
+          customerName: customerData.name,
+          customerPhone: customerData.phone
         });
       }
+
+      // Show success message
+      toast({
+        title: "Payment Successful!",
+        description: "Your order has been confirmed.",
+      });
+      
+      // Show the QR code and receipt
+      setIsPaymentOpen(false);
+      setShowQRCode(true);
+      clearCart();
+    } catch (error) {
+      console.error("Error updating order with payment info:", error);
+      toast({
+        variant: "destructive",
+        title: "Warning",
+        description: "Order paid but failed to save to database. Please keep this receipt!",
+      });
+      
+      // Still show receipt even if database update fails
+      setIsPaymentOpen(false);
+      setShowQRCode(true);
+      clearCart();
     }
-    
-    // Show the QR code and receipt
-    setIsPaymentOpen(false);
-    setShowQRCode(true);
-    clearCart();
   };
 
   useEffect(() => {
@@ -366,17 +390,38 @@ export default function StudentPortal() {
                       orderId,
                       status: "paid",
                       timestamp: new Date().toISOString(),
-                      customerName: customerName,
-                      customerPhone: customerPhone,
-                      total: getTotalPrice(),
+                      customer: {
+                        name: customerName,
+                        phone: customerPhone
+                      },
+                      payment: {
+                        total: getTotalPrice(),
+                        currency: "TSh",
+                        status: "COMPLETED",
+                        timestamp: new Date().toISOString()
+                      },
                       items: cart.map(item => ({
+                        id: item.id,
                         name: item.name,
                         quantity: item.quantity,
-                        price: item.price
-                      }))
+                        price: item.price,
+                        total: item.price * item.quantity
+                      })),
+                      meta: {
+                        version: "1.0",
+                        type: "cafeteria_order",
+                        generated: new Date().toISOString()
+                      }
                     })} 
-                    size={160}
+                    size={200}
                     level="H"
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    includeMargin={true}
+                    style={{
+                      maxWidth: "100%",
+                      height: "auto",
+                    }}
                   />
                   <div className="mt-3 space-y-1">
                     <p className="text-sm font-medium">Order #{orderNumber}</p>
