@@ -99,12 +99,28 @@ export default function KioskInterface() {
   const [categories, setCategories] = useState<{ id: string; name: string }[] | null>(null)
   const [cashiers, setCashiers] = useState<{ id: string; name: string }[] | null>(null)
   const [orders, setOrders] = useState<{ id: string; status: string }[] | null>(null)
+  const [receiptData, setReceiptData] = useState<{
+    items: any[];
+    total: number;
+  } | null>(null)
 
   const filteredItems =
     selectedCategory === "All" ? menuItems : menuItems?.filter((item) => item.category === selectedCategory)
 
   const handlePayment = async () => {
     try {
+      // Store cart data before clearing for receipt
+      setReceiptData({
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity
+        })),
+        total: getTotalPrice()
+      });
+
       const newOrderNumber = `KIOSK${Date.now().toString().slice(-6)}`
       const orderData = {
         orderNumber: newOrderNumber,
@@ -189,6 +205,39 @@ export default function KioskInterface() {
       unsubOrders();
     };
   }, []);
+
+  const downloadQRCode = () => {
+    const svg = document.querySelector('#kiosk-qr-code-svg') as SVGElement;
+    if (!svg) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const data = new XMLSerializer().serializeToString(svg);
+    const DOMURL = window.URL || window.webkitURL || window;
+
+    const img = new Image();
+    const svgBlob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+    const url = DOMURL.createObjectURL(svgBlob);
+
+    img.onload = function () {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+      DOMURL.revokeObjectURL(url);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const link = document.createElement('a');
+          link.download = `kiosk-order-${orderNumber}-qr-code.png`;
+          link.href = URL.createObjectURL(blob);
+          link.click();
+          URL.revokeObjectURL(link.href);
+        }
+      });
+    };
+
+    img.src = url;
+  };
 
   if (menuItems === null || categories === null || cashiers === null || orders === null) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
@@ -389,9 +438,51 @@ export default function KioskInterface() {
           </DialogHeader>
           <div className="space-y-3 text-center">
             <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
-              {orderNumber && <QRCodeSVG value={orderNumber} size={128} />}
-              <p className="text-sm font-medium mt-2">Order #{orderNumber}</p>
-              <p className="text-xs text-gray-600 mt-1">Show this at the pickup counter</p>
+              {orderNumber && receiptData && (
+                <>
+                  <QRCodeSVG 
+                    id="kiosk-qr-code-svg"
+                    value={JSON.stringify({
+                      orderNumber,
+                      status: "ordered",
+                      timestamp: new Date().toISOString(),
+                      customer: {
+                        name: "Kiosk Customer",
+                        source: "kiosk"
+                      },
+                      payment: {
+                        total: receiptData.total,
+                        currency: "TSh",
+                        status: "COMPLETED",
+                        timestamp: new Date().toISOString()
+                      },
+                      items: receiptData.items,
+                      meta: {
+                        version: "1.0",
+                        type: "cafeteria_kiosk_order",
+                        generated: new Date().toISOString()
+                      }
+                    })} 
+                    size={128} 
+                    level="H"
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    includeMargin={true}
+                  />
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm font-medium">Order #{orderNumber}</p>
+                    <p className="text-xs text-gray-600">Show this at the pickup counter</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={downloadQRCode}
+                      className="text-xs h-8"
+                    >
+                      Download QR Code
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
             <div className="bg-green-50 p-3 rounded-lg">
               <h3 className="font-medium text-sm mb-1">Order Details</h3>
@@ -399,7 +490,19 @@ export default function KioskInterface() {
                 Status: <Badge className="bg-yellow-500 text-[10px]">Preparing</Badge>
               </p>
               <p className="text-xs">Estimated Time: 15-20 minutes</p>
-              <p className="text-xs">Total: TSh {getTotalPrice().toLocaleString()}</p>
+              <p className="text-xs">Total: TSh {receiptData?.total.toLocaleString()}</p>
+              
+              {receiptData && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs font-medium">Items:</p>
+                  {receiptData.items.map((item) => (
+                    <div key={item.id} className="flex justify-between text-xs">
+                      <span>{item.quantity}x {item.name}</span>
+                      <span>TSh {item.total.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

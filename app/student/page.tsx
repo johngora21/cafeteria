@@ -24,6 +24,7 @@ import { CartSummary } from "@/components/CartSummary"
 import { QRCodeSVG } from 'qrcode.react'
 import { PaymentDialog } from "@/app/components/PaymentDialog"
 import { toast } from "@/components/ui/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 
 interface MenuItem {
   id: string
@@ -49,18 +50,59 @@ export default function StudentPortal() {
   
   const [selectedCategory, setSelectedCategory] = useState("All")
   const [showCheckout, setShowCheckout] = useState(false)
-  const [showPayment, setShowPayment] = useState(false)
   const [showQRCode, setShowQRCode] = useState(false)
-  const [orderNumber, setOrderNumber] = useState<string | null>(null)
-  const [orderId, setOrderId] = useState<string | null>(null)
-  const [menuItems, setMenuItems] = useState<MenuItem[] | null>(null)
-  const [categories, setCategories] = useState<string[] | null>(null)
-  const [cashiers, setCashiers] = useState<any[] | null>(null)
-  const [orders, setOrders] = useState<any[] | null>(null)
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false)
+  const [orderNumber, setOrderNumber] = useState("")
+  const [orderId, setOrderId] = useState("")
   const [orderAmount, setOrderAmount] = useState(0)
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
+  const [menuItems, setMenuItems] = useState<MenuItem[] | null>(null)
+  const [categories, setCategories] = useState<string[] | null>(null)
+  const [cashiers, setCashiers] = useState<{ id: string; name: string }[] | null>(null)
+  const [orders, setOrders] = useState<{ id: string; status: string }[] | null>(null)
+  const [receiptData, setReceiptData] = useState<{
+    items: any[];
+    total: number;
+  } | null>(null)
+
+  const { toast } = useToast()
+
+  // Function to download QR code as image
+  const downloadQRCode = () => {
+    const svg = document.querySelector('#qr-code-svg') as SVGElement;
+    if (!svg) return;
+
+    // Create a canvas and draw the SVG
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const data = new XMLSerializer().serializeToString(svg);
+    const DOMURL = window.URL || window.webkitURL || window;
+
+    const img = new Image();
+    const svgBlob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+    const url = DOMURL.createObjectURL(svgBlob);
+
+    img.onload = function () {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+      DOMURL.revokeObjectURL(url);
+
+      // Download the canvas as PNG
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const link = document.createElement('a');
+          link.download = `order-${orderNumber}-qr-code.png`;
+          link.href = URL.createObjectURL(blob);
+          link.click();
+          URL.revokeObjectURL(link.href);
+        }
+      });
+    };
+
+    img.src = url;
+  };
 
   const filteredItems =
     selectedCategory === "All" ? menuItems : menuItems?.filter((item) => item.category === selectedCategory)
@@ -118,6 +160,18 @@ export default function StudentPortal() {
     }
 
     try {
+      // Store cart data before clearing for receipt
+      setReceiptData({
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity
+        })),
+        total: getTotalPrice()
+      });
+
       // First update customer state for the receipt
       const trimmedName = customerData.name.trim();
       const formattedPhone = customerData.phone.trim();
@@ -162,6 +216,18 @@ export default function StudentPortal() {
         variant: "destructive",
         title: "Warning",
         description: "Order paid but failed to save to database. Please keep this receipt!",
+      });
+      
+      // Store cart data before clearing even on error
+      setReceiptData({
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity
+        })),
+        total: getTotalPrice()
       });
       
       // Still show receipt even if database update fails
@@ -382,9 +448,10 @@ export default function StudentPortal() {
           </DialogHeader>
           <div className="space-y-3 text-center">
             <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
-              {orderNumber && (
+              {orderNumber && receiptData && (
                 <>
                   <QRCodeSVG 
+                    id="qr-code-svg"
                     value={JSON.stringify({
                       orderNumber,
                       orderId,
@@ -395,18 +462,12 @@ export default function StudentPortal() {
                         phone: customerPhone
                       },
                       payment: {
-                        total: getTotalPrice(),
+                        total: receiptData.total,
                         currency: "TSh",
                         status: "COMPLETED",
                         timestamp: new Date().toISOString()
                       },
-                      items: cart.map(item => ({
-                        id: item.id,
-                        name: item.name,
-                        quantity: item.quantity,
-                        price: item.price,
-                        total: item.price * item.quantity
-                      })),
+                      items: receiptData.items,
                       meta: {
                         version: "1.0",
                         type: "cafeteria_order",
@@ -423,9 +484,17 @@ export default function StudentPortal() {
                       height: "auto",
                     }}
                   />
-                  <div className="mt-3 space-y-1">
+                  <div className="mt-3 space-y-2">
                     <p className="text-sm font-medium">Order #{orderNumber}</p>
                     <p className="text-xs text-gray-600">Show this QR code at pickup</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={downloadQRCode}
+                      className="text-xs h-8"
+                    >
+                      Download QR Code
+                    </Button>
                   </div>
                 </>
               )}
@@ -466,18 +535,18 @@ export default function StudentPortal() {
               <div className="p-3">
                 <p className="text-xs font-medium mb-2">Order Items:</p>
                 <div className="space-y-2">
-                  {cart.map((item) => (
+                  {receiptData?.items.map((item) => (
                     <div key={item.id} className="flex justify-between text-xs">
                       <div>
                         <span className="font-medium">{item.quantity}x</span> {item.name}
                       </div>
-                      <span>TSh {(item.price * item.quantity).toLocaleString()}</span>
+                      <span>TSh {item.total.toLocaleString()}</span>
                     </div>
                   ))}
                   <div className="pt-2 mt-2 border-t">
                     <div className="flex justify-between text-xs font-semibold">
                       <span>Total Amount</span>
-                      <span>TSh {getTotalPrice().toLocaleString()}</span>
+                      <span>TSh {receiptData?.total.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
