@@ -59,6 +59,8 @@ export default function StudentPortal() {
   const [orders, setOrders] = useState<any[] | null>(null)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [orderAmount, setOrderAmount] = useState(0)
+  const [customerName, setCustomerName] = useState("")
+  const [customerPhone, setCustomerPhone] = useState("")
 
   const filteredItems =
     selectedCategory === "All" ? menuItems : menuItems?.filter((item) => item.category === selectedCategory)
@@ -106,34 +108,40 @@ export default function StudentPortal() {
 
   const handlePaymentSuccess = async (zenoPayOrderId: string, customerData?: { name: string; phone: string }) => {
     // Update the order with the ZenoPay order ID and customer info
-    if (orderId) {
+    if (orderId && customerData) {
       try {
-        const updateData: any = {
-          zenoPayOrderId: zenoPayOrderId,
-          paymentStatus: "SUCCESS", // Update directly since we're using polling
+        const updateData = {
+          zenoPayOrderId,
+          paymentStatus: "SUCCESS",
           status: "paid",
-          paidAt: new Date().toISOString()
+          paidAt: new Date().toISOString(),
+          customerName: customerData.name,
+          phoneNumber: customerData.phone
         };
         
-        // Add customer info if provided
-        if (customerData) {
-          updateData.customerName = customerData.name;
-          updateData.phoneNumber = customerData.phone;
-        }
-        
+        // Update order in Firebase
         await updateDoc(doc(db, "orders", orderId), updateData);
         
-        console.log("Order updated with successful payment:", {
+        // Store customer info for receipt
+        setCustomerName(customerData.name);
+        setCustomerPhone(customerData.phone);
+        
+        console.log("Order updated with payment and customer info:", {
           orderId,
           zenoPayOrderId,
           customerData
         });
       } catch (error) {
         console.error("Error updating order with payment info:", error);
+        toast({
+          variant: "destructive",
+          title: "Warning",
+          description: "Order paid but failed to save customer details. Please show this receipt at pickup.",
+        });
       }
     }
     
-    // Show the QR code for order pickup
+    // Show the QR code and receipt
     setIsPaymentOpen(false);
     setShowQRCode(true);
     clearCart();
@@ -358,44 +366,83 @@ export default function StudentPortal() {
                       orderId,
                       status: "paid",
                       timestamp: new Date().toISOString(),
+                      customerName: customerName,
+                      customerPhone: customerPhone,
+                      total: getTotalPrice(),
+                      items: cart.map(item => ({
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price
+                      }))
                     })} 
-                    size={128} 
+                    size={160}
+                    level="H"
                   />
-                  <p className="text-sm font-medium mt-2">Order #{orderNumber}</p>
-                  <p className="text-xs text-gray-600 mt-1">Show this at the pickup counter</p>
+                  <div className="mt-3 space-y-1">
+                    <p className="text-sm font-medium">Order #{orderNumber}</p>
+                    <p className="text-xs text-gray-600">Show this QR code at pickup</p>
+                  </div>
                 </>
               )}
             </div>
-            <div className="bg-green-50 p-3 rounded-lg text-left">
-              <h3 className="font-medium text-sm mb-2">Order Details</h3>
-              <div className="space-y-1 text-xs">
-                <p className="flex justify-between">
-                  <span>Status:</span>
-                  <Badge className="bg-green-500 text-[10px]">Paid</Badge>
-                </p>
-                <p className="flex justify-between">
-                  <span>Total Amount:</span>
-                  <span>TSh {getTotalPrice().toLocaleString()}</span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Date:</span>
-                  <span>{new Date().toLocaleDateString()}</span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Time:</span>
-                  <span>{new Date().toLocaleTimeString()}</span>
-                </p>
+
+            {/* Digital Receipt */}
+            <div className="bg-white border rounded-lg text-left divide-y">
+              {/* Header */}
+              <div className="p-3">
+                <h3 className="font-semibold text-sm">Digital Receipt</h3>
+                <p className="text-xs text-gray-500 mt-1">Keep this for your records</p>
               </div>
-              <div className="mt-3">
-                <p className="text-xs font-medium mb-1">Items:</p>
-                <div className="space-y-1">
+              
+              {/* Customer Info */}
+              <div className="p-3 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-600">Customer:</span>
+                  <span className="font-medium">{customerName}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-600">Phone:</span>
+                  <span>{customerPhone}</span>
+                </div>
+              </div>
+
+              {/* Order Details */}
+              <div className="p-3 space-y-2">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-medium">Order Status</p>
+                    <p className="text-[10px] text-gray-500">{new Date().toLocaleString()}</p>
+                  </div>
+                  <Badge className="bg-green-500 text-[10px]">Paid & Confirmed</Badge>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div className="p-3">
+                <p className="text-xs font-medium mb-2">Order Items:</p>
+                <div className="space-y-2">
                   {cart.map((item) => (
-                    <div key={item.id} className="text-xs flex justify-between">
-                      <span>{item.quantity}x {item.name}</span>
+                    <div key={item.id} className="flex justify-between text-xs">
+                      <div>
+                        <span className="font-medium">{item.quantity}x</span> {item.name}
+                      </div>
                       <span>TSh {(item.price * item.quantity).toLocaleString()}</span>
                     </div>
                   ))}
+                  <div className="pt-2 mt-2 border-t">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>Total Amount</span>
+                      <span>TSh {getTotalPrice().toLocaleString()}</span>
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-3 bg-gray-50">
+                <p className="text-[10px] text-center text-gray-500">
+                  Thank you for your order! If you need any assistance,<br/>please contact our support team.
+                </p>
               </div>
             </div>
           </div>
